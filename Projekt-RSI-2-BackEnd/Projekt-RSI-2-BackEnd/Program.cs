@@ -6,6 +6,7 @@ using Projekt_RSI_2_BackEnd.Data;
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Services;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace Projekt_RSI_2_BackEnd
 {
@@ -37,6 +38,20 @@ namespace Projekt_RSI_2_BackEnd
 
             // Add services to the container.
 
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                        factory: partition => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 5, 
+                            Window = TimeSpan.FromSeconds(10)
+                        }));
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            });
+
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
@@ -59,7 +74,7 @@ namespace Projekt_RSI_2_BackEnd
             }
 
             app.UseHttpsRedirection();
-            
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
 
