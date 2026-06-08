@@ -1,0 +1,6 @@
+@Projekt_RSI_2_BackEnd_HostAddress = http://localhost:5143
+
+GET {{Projekt_RSI_2_BackEnd_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
