@@ -39,6 +39,7 @@ namespace Projekt_RSI_2_BackEnd
             builder.Services.AddOpenApi();
             builder.Services.AddSwaggerGen();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<ITrainRouteService, TrainRouteService>();
 
             var app = builder.Build();
 
