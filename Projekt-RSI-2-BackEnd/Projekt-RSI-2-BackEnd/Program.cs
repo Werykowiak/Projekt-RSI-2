@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Projekt_RSI_2_BackEnd.Data;
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Services;
@@ -32,14 +33,21 @@ namespace Projekt_RSI_2_BackEnd
                     };
                 });
 
+            builder.Services.AddSwaggerGen();
+
             // Add services to the container.
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
-            builder.Services.AddSwaggerGen();
+            
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<ITrainRouteService, TrainRouteService>();
+            builder.Services.AddScoped<IReservationService, ReservationService>();
 
             var app = builder.Build();
 
