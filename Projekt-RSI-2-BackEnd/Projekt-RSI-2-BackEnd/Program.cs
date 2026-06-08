@@ -34,6 +34,12 @@ namespace Projekt_RSI_2_BackEnd
                     };
                 });
 
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = "localhost:6379"; 
+                options.InstanceName = "TrainsCache_";    
+            });
+
             builder.Services.AddSwaggerGen();
 
             // Add services to the container.

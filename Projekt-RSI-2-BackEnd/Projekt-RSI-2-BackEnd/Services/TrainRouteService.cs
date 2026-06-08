@@ -2,16 +2,20 @@
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace Projekt_RSI_2_BackEnd.Services
 {
     public class TrainRouteService : ITrainRouteService
     {
         private readonly AppDbContext _context;
+        private readonly IDistributedCache _cache;
 
-        public TrainRouteService(AppDbContext context)
+        public TrainRouteService(AppDbContext context, IDistributedCache cache)
         {
             _context = context;
+            _cache = cache;
         }
 
         public async Task<IEnumerable<TrainRoute>> GetAllRoutesAsync() => await _context.TrainRoutes.ToListAsync();
@@ -53,6 +57,19 @@ namespace Projekt_RSI_2_BackEnd.Services
 
         public async Task<IEnumerable<TrainRoute>> SearchRoutesAsync(string? departureCity, string? arrivalCity, DateTime? date)
         {
+            // tworzenie klucza dla kombinacji filtrow
+            string formattedDate = date.HasValue ? date.Value.ToString("yyyy-MM-dd") : "anydate";
+            string cacheKey = $"search_{departureCity?.ToLower() ?? "any"}_{arrivalCity?.ToLower() ?? "any"}_{formattedDate}";
+
+            var cachedData = await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                // jesli dane w redisie to zwracamy 
+                return JsonSerializer.Deserialize<List<TrainRoute>>(cachedData)!;
+            }
+
+            // brak danych to odpytujemy baze
             var query = _context.TrainRoutes.AsQueryable();
 
             if (!string.IsNullOrEmpty(departureCity))
@@ -70,7 +87,18 @@ namespace Projekt_RSI_2_BackEnd.Services
                 query = query.Where(r => r.DepartureTime.Date == date.Value.Date);
             }
 
-            return await query.ToListAsync();
+            var routes = await query.ToListAsync();
+
+            // jak baza cokolwiek znalazla to zapisujemy to do redisa na 2m
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2)
+            };
+
+            string jsonToCache = JsonSerializer.Serialize(routes);
+            await _cache.SetStringAsync(cacheKey, jsonToCache, cacheOptions);
+
+            return routes;
         }
     }
 }
