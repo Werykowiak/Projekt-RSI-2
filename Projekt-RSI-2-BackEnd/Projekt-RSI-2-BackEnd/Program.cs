@@ -30,10 +30,9 @@ namespace Projekt_RSI_2_BackEnd
             {
                 options.AddPolicy("AllowNuxt", policy =>
                 {
-                    policy.WithOrigins("http://localhost:3000")
+                    policy.AllowAnyOrigin()
                           .AllowAnyHeader()
-                          .AllowAnyMethod()
-                          .AllowCredentials();
+                          .AllowAnyMethod();
                 });
             });
 
@@ -60,8 +59,6 @@ namespace Projekt_RSI_2_BackEnd
 
             builder.Services.AddSwaggerGen();
 
-            // Add services to the container.
-
             builder.Services.AddRateLimiter(options =>
             {
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
@@ -84,7 +81,6 @@ namespace Projekt_RSI_2_BackEnd
                     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
                     options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
                 });
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
             
             builder.Services.AddScoped<IAuthService, AuthService>();
@@ -93,14 +89,13 @@ namespace Projekt_RSI_2_BackEnd
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
 
-            app.UseHttpsRedirection();
+            // app.UseHttpsRedirection();
             app.UseRateLimiter();
             app.UseCors("AllowNuxt");
             app.UseAuthentication();
@@ -109,7 +104,6 @@ namespace Projekt_RSI_2_BackEnd
             app.MapControllers();
             app.MapHub<BookingHub>("/bookingHub");
 
-            // Apply migrations with retry logic
             using (var scope = app.Services.CreateScope())
             {
                 var services = scope.ServiceProvider;
@@ -130,8 +124,6 @@ namespace Projekt_RSI_2_BackEnd
                     catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1801)
                     {
                         logger.LogWarning("Baza danych już istnieje (błąd 1801). Próba kontynuacji...");
-                        // Jeśli baza istnieje, Migrate() powinien sobie poradzić, ale jeśli rzucił wyjątek,
-                        // to może oznaczać problem z widocznością. Spróbujmy po prostu wyjść z pętli.
                         break;
                     }
                     catch (Exception ex)

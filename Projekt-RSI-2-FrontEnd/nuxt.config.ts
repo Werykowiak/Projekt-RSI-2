@@ -13,7 +13,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: 'https://localhost:7253' // Backend URL
+      apiBase: '' // Default, overridden by NUXT_PUBLIC_API_BASE environment variable
     }
   },
 
