@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Projekt_RSI_2_BackEnd.Data;
+using Projekt_RSI_2_BackEnd.Hubs;
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Models;
 using QuestPDF.Fluent;
@@ -13,6 +14,7 @@ namespace Projekt_RSI_2_BackEnd.Services
     public class ReservationService : IReservationService
     {
         private readonly AppDbContext _context;
+        private readonly IHubContext<BookingHub> _hubContext;
 
         public ReservationService(AppDbContext context)
         {
@@ -31,7 +33,7 @@ namespace Projekt_RSI_2_BackEnd.Services
             {
                 TrainRouteId = route.Id,
                 UserId = userId,
-                ReservationDate = DateTime.UtcNow,
+                ReservationDate = DateTime.Now,
                 NumberOfSeats = numberOfSeats
             };
 
@@ -39,6 +41,7 @@ namespace Projekt_RSI_2_BackEnd.Services
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync();
 
+            await _hubContext.Clients.All.SendAsync("UpdateSeats", route.Id, route.AvailableSeats);
 
             return (true, "Kupiono bilet.", reservation.Id);
         }

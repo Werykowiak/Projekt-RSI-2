@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Projekt_RSI_2_BackEnd.Data;
+using Projekt_RSI_2_BackEnd.Hubs;
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Services;
 using System.Text;
@@ -58,6 +59,8 @@ namespace Projekt_RSI_2_BackEnd
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             });
 
+            builder.Services.AddSignalR();
+
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
@@ -85,6 +88,7 @@ namespace Projekt_RSI_2_BackEnd
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapHub<BookingHub>("/bookingHub");
 
             app.Run();
         }
