@@ -10,6 +10,7 @@ namespace Projekt_RSI_2_BackEnd.Interfaces
         Task<bool> UpdateRouteAsync(TrainRoute trainRoute);
         Task<bool> DeleteRouteAsync(int id);
 
-        Task<IEnumerable<TrainRoute>> SearchRoutesAsync(string? from, string? to, DateTime? date);
+        Task<IEnumerable<TrainRoute>> SearchRoutesAsync(string? departureCity, string? arrivalCity, DateTime? date);
+        Task ClearCacheAsync();
     }
 }

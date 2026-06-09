@@ -1,4 +1,4 @@
-﻿using Projekt_RSI_2_BackEnd.Data;
+using Projekt_RSI_2_BackEnd.Data;
 using Projekt_RSI_2_BackEnd.Interfaces;
 using Projekt_RSI_2_BackEnd.Models;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +11,45 @@ namespace Projekt_RSI_2_BackEnd.Services
     {
         private readonly AppDbContext _context;
         private readonly IDistributedCache _cache;
+        private const string CacheVersionKey = "SearchCacheVersion";
 
         public TrainRouteService(AppDbContext context, IDistributedCache cache)
         {
             _context = context;
             _cache = cache;
+        }
+
+        private async Task<string> GetCacheVersionAsync()
+        {
+            try
+            {
+                var version = await _cache.GetStringAsync(CacheVersionKey);
+                return version ?? "0";
+            }
+            catch
+            {
+                return "0";
+            }
+        }
+
+        public async Task ClearCacheAsync()
+        {
+            try
+            {
+                var version = await GetCacheVersionAsync();
+                if (int.TryParse(version, out int v))
+                {
+                    await _cache.SetStringAsync(CacheVersionKey, (v + 1).ToString());
+                }
+                else
+                {
+                    await _cache.SetStringAsync(CacheVersionKey, "1");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Redis error in ClearCacheAsync: {ex.Message}");
+            }
         }
 
         public async Task<IEnumerable<TrainRoute>> GetAllRoutesAsync() => await _context.TrainRoutes.ToListAsync();
@@ -26,6 +60,7 @@ namespace Projekt_RSI_2_BackEnd.Services
         {
             _context.TrainRoutes.Add(trainRoute);
             await _context.SaveChangesAsync();
+            await ClearCacheAsync();
             return trainRoute;
         }
 
@@ -42,6 +77,7 @@ namespace Projekt_RSI_2_BackEnd.Services
             route.AvailableSeats = trainRoute.AvailableSeats;
 
             await _context.SaveChangesAsync();
+            await ClearCacheAsync();
             return true;
         }
 
@@ -52,21 +88,29 @@ namespace Projekt_RSI_2_BackEnd.Services
 
             _context.TrainRoutes.Remove(trainRoute);
             await _context.SaveChangesAsync();
+            await ClearCacheAsync();
             return true;
         }
 
         public async Task<IEnumerable<TrainRoute>> SearchRoutesAsync(string? departureCity, string? arrivalCity, DateTime? date)
         {
-            // tworzenie klucza dla kombinacji filtrow
+            string version = await GetCacheVersionAsync();
+            
+            // tworzenie klucza dla kombinacji filtrow z uwzglednieniem wersji
             string formattedDate = date.HasValue ? date.Value.ToString("yyyy-MM-dd") : "anydate";
-            string cacheKey = $"search_{departureCity?.ToLower() ?? "any"}_{arrivalCity?.ToLower() ?? "any"}_{formattedDate}";
+            string cacheKey = $"v{version}_search_{departureCity?.ToLower() ?? "any"}_{arrivalCity?.ToLower() ?? "any"}_{formattedDate}";
 
-            var cachedData = await _cache.GetStringAsync(cacheKey);
-
-            if (!string.IsNullOrEmpty(cachedData))
+            try
             {
-                // jesli dane w redisie to zwracamy 
-                return JsonSerializer.Deserialize<List<TrainRoute>>(cachedData)!;
+                var cachedData = await _cache.GetStringAsync(cacheKey);
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    return JsonSerializer.Deserialize<List<TrainRoute>>(cachedData)!;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Redis error in SearchRoutesAsync (read): {ex.Message}");
             }
 
             // brak danych to odpytujemy baze
@@ -89,14 +133,20 @@ namespace Projekt_RSI_2_BackEnd.Services
 
             var routes = await query.ToListAsync();
 
-            // jak baza cokolwiek znalazla to zapisujemy to do redisa na 2m
-            var cacheOptions = new DistributedCacheEntryOptions
+            try
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2)
-            };
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2)
+                };
 
-            string jsonToCache = JsonSerializer.Serialize(routes);
-            await _cache.SetStringAsync(cacheKey, jsonToCache, cacheOptions);
+                string jsonToCache = JsonSerializer.Serialize(routes);
+                await _cache.SetStringAsync(cacheKey, jsonToCache, cacheOptions);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Redis error in SearchRoutesAsync (write): {ex.Message}");
+            }
 
             return routes;
         }

@@ -18,7 +18,24 @@ namespace Projekt_RSI_2_BackEnd
             var builder = WebApplication.CreateBuilder(args);
             
             builder.Services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(
+                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    sqlOptions => sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 10,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null)
+                ));
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowNuxt", policy =>
+                {
+                    policy.WithOrigins("http://localhost:3000")
+                          .AllowAnyHeader()
+                          .AllowAnyMethod()
+                          .AllowCredentials();
+                });
+            });
 
             var jwtKey = builder.Configuration["Jwt:Key"];
 
@@ -37,7 +54,7 @@ namespace Projekt_RSI_2_BackEnd
 
             builder.Services.AddStackExchangeRedisCache(options =>
             {
-                options.Configuration = "localhost:6379"; 
+                options.Configuration = builder.Configuration["Redis:Configuration"] ?? "localhost:6379"; 
                 options.InstanceName = "TrainsCache_";    
             });
 
@@ -65,6 +82,7 @@ namespace Projekt_RSI_2_BackEnd
                 .AddJsonOptions(options =>
                 {
                     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
                 });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
@@ -84,11 +102,47 @@ namespace Projekt_RSI_2_BackEnd
 
             app.UseHttpsRedirection();
             app.UseRateLimiter();
+            app.UseCors("AllowNuxt");
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
             app.MapHub<BookingHub>("/bookingHub");
+
+            // Apply migrations with retry logic
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                var logger = services.GetRequiredService<ILogger<Program>>();
+                var db = services.GetRequiredService<AppDbContext>();
+
+                int retries = 0;
+                const int maxRetries = 15;
+                while (retries < maxRetries)
+                {
+                    try
+                    {
+                        logger.LogInformation("Próba zastosowania migracji (próba {Retries}/{MaxRetries})...", retries + 1, maxRetries);
+                        db.Database.Migrate();
+                        logger.LogInformation("Migracje zastosowane pomyślnie.");
+                        break;
+                    }
+                    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 1801)
+                    {
+                        logger.LogWarning("Baza danych już istnieje (błąd 1801). Próba kontynuacji...");
+                        // Jeśli baza istnieje, Migrate() powinien sobie poradzić, ale jeśli rzucił wyjątek,
+                        // to może oznaczać problem z widocznością. Spróbujmy po prostu wyjść z pętli.
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        retries++;
+                        logger.LogError(ex, "Błąd podczas stosowania migracji. Ponawianie za 5 sekund...");
+                        if (retries >= maxRetries) throw;
+                        Thread.Sleep(5000);
+                    }
+                }
+            }
 
             app.Run();
         }

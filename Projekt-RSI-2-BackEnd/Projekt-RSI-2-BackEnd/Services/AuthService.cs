@@ -42,17 +42,17 @@ namespace Projekt_RSI_2_BackEnd.Services
             return (true, "Rejestracja przebiegła pomyślnie.");
         }
 
-        public async Task<(bool Success, string Token, string ErrorMessage)> LoginAsync(LoginDto request)
+        public async Task<(bool Success, string Token, User? User, string ErrorMessage)> LoginAsync(LoginDto request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
-                return (false, string.Empty, "Nieprawidłowy email lub hasło.");
+                return (false, string.Empty, null, "Nieprawidłowy email lub hasło.");
             }
 
             var token = GenerateJwtToken(user);
-            return (true, token, string.Empty);
+            return (true, token, user, string.Empty);
         }
 
         private string GenerateJwtToken(User user)
@@ -64,7 +64,8 @@ namespace Projekt_RSI_2_BackEnd.Services
             var claims = new[]
             {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email)
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim(ClaimTypes.Role, user.Role)
         };
 
             var token = new JwtSecurityToken(

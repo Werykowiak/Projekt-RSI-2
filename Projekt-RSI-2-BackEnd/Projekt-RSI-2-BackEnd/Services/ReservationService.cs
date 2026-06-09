@@ -15,10 +15,13 @@ namespace Projekt_RSI_2_BackEnd.Services
     {
         private readonly AppDbContext _context;
         private readonly IHubContext<BookingHub> _hubContext;
+        private readonly ITrainRouteService _trainRouteService;
 
-        public ReservationService(AppDbContext context)
+        public ReservationService(AppDbContext context, IHubContext<BookingHub> hubContext, ITrainRouteService trainRouteService)
         {
             _context = context;
+            _hubContext = hubContext;
+            _trainRouteService = trainRouteService;
         }
 
         public async Task<(bool Success, string Message, int? ReservationId)> BookTicketAsync(int trainRouteId, int numberOfSeats, int userId)
@@ -40,6 +43,9 @@ namespace Projekt_RSI_2_BackEnd.Services
             route.AvailableSeats -= numberOfSeats;
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync();
+
+            // Inwalidacja cache'u wyszukiwania, ponieważ liczba miejsc się zmieniła
+            await _trainRouteService.ClearCacheAsync();
 
             await _hubContext.Clients.All.SendAsync("UpdateSeats", route.Id, route.AvailableSeats);
 
@@ -114,6 +120,15 @@ namespace Projekt_RSI_2_BackEnd.Services
             byte[] pdfBytes = document.GeneratePdf();
 
             return (true, pdfBytes, $"Bilet_{reservationId}.pdf");
+        }
+
+        public async Task<IEnumerable<Reservation>> GetUserReservationsAsync(int userId)
+        {
+            return await _context.Reservations
+                .Include(r => r.TrainRoute)
+                .Where(r => r.UserId == userId)
+                .OrderByDescending(r => r.ReservationDate)
+                .ToListAsync();
         }
     }
 }

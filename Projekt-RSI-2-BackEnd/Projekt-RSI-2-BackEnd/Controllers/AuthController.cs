@@ -35,7 +35,7 @@ namespace Projekt_RSI_2_BackEnd.Controllers
             if (!result.Success)
                 return Unauthorized(result.ErrorMessage);
 
-            return Ok(new { Token = result.Token });
+            return Ok(new { Token = result.Token, User = result.User });
         }
     }
 }

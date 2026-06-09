@@ -20,6 +20,9 @@ namespace Projekt_RSI_2_BackEnd.Models
         [Required]
         public string LastName { get; set; }
 
+        [Required]
+        public string Role { get; set; } = "User";
+
         public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
     }
 }

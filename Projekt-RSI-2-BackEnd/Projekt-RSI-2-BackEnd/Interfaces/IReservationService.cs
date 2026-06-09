@@ -9,5 +9,7 @@ namespace Projekt_RSI_2_BackEnd.Interfaces
         Task<(bool Success, Reservation? Data, string ErrorMessage)> GetReservationAsync(int reservationId, int userId);
 
         Task<(bool Success, byte[] PdfBytes, string FileName)> GetReservationPdfAsync(int reservationId, int userId);
+
+        Task<IEnumerable<Reservation>> GetUserReservationsAsync(int userId);
     }
 }

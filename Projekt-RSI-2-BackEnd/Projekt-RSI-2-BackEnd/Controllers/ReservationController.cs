@@ -10,11 +10,11 @@ namespace Projekt_RSI_2_BackEnd.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize] 
-    public class ReservationsController : ControllerBase
+    public class ReservationController : ControllerBase
     {
         private readonly IReservationService _reservationService;
 
-        public ReservationsController(IReservationService reservationService)
+        public ReservationController(IReservationService reservationService)
         {
             _reservationService = reservationService;
         }
@@ -28,6 +28,13 @@ namespace Projekt_RSI_2_BackEnd.Controllers
             if (!result.Success) return BadRequest(result.Message);
 
             return Ok(new { Message = result.Message, ReservationId = result.ReservationId });
+        }
+
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyReservations()
+        {
+            var results = await _reservationService.GetUserReservationsAsync(GetUserId());
+            return Ok(results);
         }
 
         [HttpGet("{id}")]
